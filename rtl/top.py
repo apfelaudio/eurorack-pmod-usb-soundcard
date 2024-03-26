@@ -374,7 +374,8 @@ class USB2AudioInterface(Elaboratable):
             ep2_in.stream.stream_eq(channels_to_usb_stream.usb_stream_out),
         ]
 
-        m.submodules.eurorack_pmod = eurorack_pmod = EurorackPmod()
+        m.submodules.eurorack_pmod = eurorack_pmod = EurorackPmod(
+                hardware_r33=(os.getenv('PMOD_HW') == 'HW_R33'))
 
         m.submodules.audio_to_channels = AudioToChannels(
                 eurorack_pmod,
@@ -484,4 +485,8 @@ class UAC2RequestHandlers(USBRequestHandler):
                 return m
 
 if __name__ == "__main__":
-    top_level_cli(USB2AudioInterface)
+    if not os.getenv('PMOD_HW') in ['HW_R33', 'HW_R31']:
+        print('Please specify a valid eurorack-pmod hardware revision in the environment e.g.\n'
+              '$ PMOD_HW=HW_R33 LUNA_PLAFORM=<your_platform> ...')
+    else:
+        top_level_cli(USB2AudioInterface)

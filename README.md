@@ -4,10 +4,12 @@ This project allows a [`eurorack-pmod`](https://github.com/apfelaudio/eurorack-p
 
 - Only 48KHz / 16bit sample rate supported
 - LambdaConcept ECPIX-5 is the only (tested) target platform
+- For now, enumeration and audio only tested on Linux
 
 ## Connecting
 
 - The `eurorack-pmod` should be connected to PMOD0.
+    - **WARN**: if you are using an older (R3.1) hw revision, make sure to build with `PMOD_HW=HW_R31` in the build invocation below. Otherwise the gateware will freeze as it will try to talk to the touch IC (which is not there for R3.1).
 - CN16 is the USB-C device port upon which the device will enumerate
 - Power jumper set to `USB-2` so it's possible to disconnect & reconnect the LUNA USB port while the board is powered from the debug interface port.
 
@@ -49,7 +51,7 @@ pip3 install deps/luna
 Now you can build a bitstream, it will end up in `build/top.bit`.
 ```bash
 # From the root directory of this repository
-LUNA_PLATFORM="ecpix5:ECPIX5_85F_Platform" python3 rtl/top.py --dry-run --keep-files
+PMOD_HW=HW_R33 LUNA_PLATFORM="ecpix5:ECPIX5_85F_Platform" python3 rtl/top.py --dry-run --keep-files
 ```
 
 From outside the container, if you have `openFPGALoader` installed you can flash this to ECPIX like so (with R03 boards)
