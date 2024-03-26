@@ -1,0 +1,6 @@
+[submodule "deps/eurorack-pmod"]
+	path = deps/eurorack-pmod
+	url = https://github.com/apfelaudio/eurorack-pmod
+[submodule "deps/luna"]
+	path = deps/luna
+	url = https://github.com/schnommus/luna
