@@ -457,7 +457,8 @@ class USB2AudioInterface(Elaboratable):
 
         with m.FSM(domain="usb") as fsm:
             with m.State("WAIT"):
-                with m.If(jack_period == 60000000):
+                # 100Hz // TODO make this delta
+                with m.If(jack_period == int(60000000 / 100)):
                     m.d.usb += [
                         jack_period.eq(0),
                         flip.eq(~flip),
@@ -467,7 +468,7 @@ class USB2AudioInterface(Elaboratable):
                     m.d.usb += jack_period.eq(jack_period + 1)
             with m.State("B0"):
                 m.d.comb += [
-                    usb_ep3_in.stream.payload.eq(0x09),
+                    usb_ep3_in.stream.payload.eq(0x0B),
                     usb_ep3_in.stream.first.eq(1),
                     usb_ep3_in.stream.valid.eq(1),
                 ]
@@ -475,21 +476,21 @@ class USB2AudioInterface(Elaboratable):
                     m.next = "B1"
             with m.State("B1"):
                 m.d.comb += [
-                    usb_ep3_in.stream.payload.eq(0x90),
+                    usb_ep3_in.stream.payload.eq(0xB1),
                     usb_ep3_in.stream.valid.eq(1),
                 ]
                 with m.If(usb_ep3_in.stream.ready):
                     m.next = "B2"
             with m.State("B2"):
                 m.d.comb += [
-                    usb_ep3_in.stream.payload.eq(64),
+                    usb_ep3_in.stream.payload.eq(1),
                     usb_ep3_in.stream.valid.eq(1),
                 ]
                 with m.If(usb_ep3_in.stream.ready):
                     m.next = "B3"
             with m.State("B3"):
                 m.d.comb += [
-                    usb_ep3_in.stream.payload.eq(10),
+                    usb_ep3_in.stream.payload.eq(jack_usb),
                     usb_ep3_in.stream.last.eq(1),
                     usb_ep3_in.stream.valid.eq(1),
                 ]
