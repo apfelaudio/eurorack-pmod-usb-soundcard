@@ -455,13 +455,23 @@ class USB2AudioInterface(Elaboratable):
             led_red[2].eq(flip)
         ]
 
+        N_TOUCH_CHANNELS = 8
+        touch_usb = []
+        for n in range(N_TOUCH_CHANNELS):
+            touch_usb.append(Signal(8))
+            setattr(m.submodules, f"touch_usb_synchronizer{n}",
+                    FFSynchronizer(eurorack_pmod.touch[n], touch_usb[n], o_domain="usb"))
+
+        touch_ch = Signal(3)
+
         with m.FSM(domain="usb") as fsm:
             with m.State("WAIT"):
                 # 100Hz // TODO make this delta
-                with m.If(jack_period == int(60000000 / 100)):
+                with m.If(jack_period == int(60000000 / 40)):
                     m.d.usb += [
                         jack_period.eq(0),
                         flip.eq(~flip),
+                        touch_ch.eq(0)
                     ]
                     m.next = "B0"
                 with m.Else():
@@ -469,33 +479,45 @@ class USB2AudioInterface(Elaboratable):
             with m.State("B0"):
                 m.d.comb += [
                     usb_ep3_in.stream.payload.eq(0x0B),
-                    usb_ep3_in.stream.first.eq(1),
+                    usb_ep3_in.stream.first.eq(touch_ch == 0),
                     usb_ep3_in.stream.valid.eq(1),
                 ]
                 with m.If(usb_ep3_in.stream.ready):
                     m.next = "B1"
             with m.State("B1"):
                 m.d.comb += [
-                    usb_ep3_in.stream.payload.eq(0xB1),
+                    usb_ep3_in.stream.payload.eq(0xB0),
                     usb_ep3_in.stream.valid.eq(1),
                 ]
                 with m.If(usb_ep3_in.stream.ready):
                     m.next = "B2"
             with m.State("B2"):
                 m.d.comb += [
-                    usb_ep3_in.stream.payload.eq(1),
+                    usb_ep3_in.stream.payload.eq(touch_ch),
                     usb_ep3_in.stream.valid.eq(1),
                 ]
                 with m.If(usb_ep3_in.stream.ready):
                     m.next = "B3"
             with m.State("B3"):
+
                 m.d.comb += [
-                    usb_ep3_in.stream.payload.eq(jack_usb),
-                    usb_ep3_in.stream.last.eq(1),
+                    usb_ep3_in.stream.last.eq(touch_ch == (N_TOUCH_CHANNELS - 1)),
                     usb_ep3_in.stream.valid.eq(1),
                 ]
+
+                # Infer mux of active channel to payload
+                with m.Switch(touch_ch):
+                    for n in range(N_TOUCH_CHANNELS):
+                        with m.Case(n):
+                            # Shift to get 0-127 as MIDI CC requires
+                            m.d.comb += usb_ep3_in.stream.payload.eq(touch_usb[n] >> 1),
+
                 with m.If(usb_ep3_in.stream.ready):
-                    m.next = "WAIT"
+                    with m.If(touch_ch == (N_TOUCH_CHANNELS - 1)):
+                        m.next = "WAIT"
+                    with m.Else():
+                        m.d.usb += touch_ch.eq(touch_ch + 1)
+                        m.next = "B0"
         return m
 
 class UAC2RequestHandlers(USBRequestHandler):

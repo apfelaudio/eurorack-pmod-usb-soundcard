@@ -47,6 +47,8 @@ class EurorackPmod(Elaboratable):
 
         self.force_dac_output = Signal(signed(width))
 
+        self.touch = [Signal(8) for _ in range(8)]
+
         self.fs_strobe = Signal()
 
     def request_pins(self, platform):
@@ -80,7 +82,7 @@ class EurorackPmod(Elaboratable):
 
         # Defines and default cal for PMOD hardware version.
         if self.hardware_r33:
-            platform.add_file("eurorack_pmod_defines.sv", "`define HW_R33")
+            platform.add_file("eurorack_pmod_defines.sv", "`define HW_R33\n`define TOUCH_SENSE_ENABLED")
             platform.add_file("cal/cal_mem_default_r33.hex",
                               open(os.path.join(vroot, "cal/cal_mem_default_r33.hex")))
         else:
@@ -100,6 +102,8 @@ class EurorackPmod(Elaboratable):
                           open(os.path.join(vroot, "drivers/ak4619-cfg.hex")))
         platform.add_file("drivers/pca9635-cfg.hex",
                           open(os.path.join(vroot, "drivers/pca9635-cfg.hex")))
+        platform.add_file("drivers/cy8cmbr3108-cfg.hex",
+                          open(os.path.join(vroot, "drivers/cy8cmbr3108-cfg.hex")))
 
     def elaborate(self, platform) -> Module:
 
@@ -170,6 +174,15 @@ class EurorackPmod(Elaboratable):
             o_eeprom_dev = self.eeprom_dev,
             o_eeprom_serial = self.eeprom_serial,
             o_jack = self.jack,
+
+            o_touch0 = self.touch[0],
+            o_touch1 = self.touch[1],
+            o_touch2 = self.touch[2],
+            o_touch3 = self.touch[3],
+            o_touch4 = self.touch[4],
+            o_touch5 = self.touch[5],
+            o_touch6 = self.touch[6],
+            o_touch7 = self.touch[7],
 
             # Debug ports
             o_sample_adc0 = self.sample_adc0,
