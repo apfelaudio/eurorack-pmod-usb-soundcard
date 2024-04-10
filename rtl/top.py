@@ -41,7 +41,7 @@ class USB2AudioInterface(Elaboratable):
     """ USB Audio Class v2 interface """
     NR_CHANNELS = 4
     MAX_PACKET_SIZE = 512 # NR_CHANNELS * 24 + 4
-    MAX_PACKET_SIZE_MIDI = 512
+    MAX_PACKET_SIZE_MIDI = 64
 
     def create_descriptors(self):
         """ Creates the descriptors that describe our audio topology. """
@@ -354,29 +354,6 @@ class USB2AudioInterface(Elaboratable):
             max_packet_size=self.MAX_PACKET_SIZE_MIDI)
         usb.add_endpoint(usb_ep3_in)
 
-        #
-        # USB MIDI (echo only for now)
-        #
-        usb_midi_fifo_depth = self.MAX_PACKET_SIZE_MIDI
-        m.submodules.midi_echo_fifo = midi_echo_fifo = \
-            DomainRenamer("usb")(SyncFIFOBuffered(width=8+2, depth=usb_midi_fifo_depth))
-
-        m.d.comb += [
-            *connect_stream_to_fifo(usb_ep3_out.stream, midi_echo_fifo,    firstBit=-2, lastBit=-1),
-            *connect_fifo_to_stream(midi_echo_fifo,     usb_ep3_in.stream, firstBit=-2, lastBit=-1),
-        ]
-
-        scount = Signal(8)
-        with m.If(usb_ep3_in.stream.valid):
-            m.d.usb += scount.eq(scount+1)
-        led_red = [platform.request("rgb_led", n).r.o for n in range(4)]
-        m.d.comb += [
-            led_red[0].eq(scount[3]),
-            led_red[1].eq(scount[4]),
-            led_red[2].eq(scount[5]),
-            led_red[3].eq(scount[6]),
-        ]
-
         # calculate bytes in frame for audio in
         audio_in_frame_bytes = Signal(range(self.MAX_PACKET_SIZE), reset=24 * self.NR_CHANNELS)
         audio_in_frame_bytes_counting = Signal()
@@ -466,6 +443,58 @@ class USB2AudioInterface(Elaboratable):
                 to_usb_stream=channels_to_usb_stream.channel_stream_in,
                 from_usb_stream=usb_to_channel_stream.channel_stream_out)
 
+        jack_period = Signal(32)
+        jack_usb = Signal(8)
+        m.submodules.jack_sync = FFSynchronizer(eurorack_pmod.jack, jack_usb, o_domain="usb")
+
+        led_red = [platform.request("rgb_led", n).r.o for n in range(4)]
+        flip = Signal()
+        m.d.comb += [
+            led_red[0].eq(usb_ep3_in.stream.ready),
+            led_red[1].eq(1),
+            led_red[2].eq(flip)
+        ]
+
+        with m.FSM(domain="usb") as fsm:
+            with m.State("WAIT"):
+                with m.If(jack_period == 60000000):
+                    m.d.usb += [
+                        jack_period.eq(0),
+                        flip.eq(~flip),
+                    ]
+                    m.next = "B0"
+                with m.Else():
+                    m.d.usb += jack_period.eq(jack_period + 1)
+            with m.State("B0"):
+                m.d.comb += [
+                    usb_ep3_in.stream.payload.eq(0x19),
+                    usb_ep3_in.stream.first.eq(1),
+                    usb_ep3_in.stream.valid.eq(1),
+                ]
+                with m.If(usb_ep3_in.stream.ready):
+                    m.next = "B1"
+            with m.State("B1"):
+                m.d.comb += [
+                    usb_ep3_in.stream.payload.eq(0x90),
+                    usb_ep3_in.stream.valid.eq(1),
+                ]
+                with m.If(usb_ep3_in.stream.ready):
+                    m.next = "B2"
+            with m.State("B2"):
+                m.d.comb += [
+                    usb_ep3_in.stream.payload.eq(64),
+                    usb_ep3_in.stream.valid.eq(1),
+                ]
+                with m.If(usb_ep3_in.stream.ready):
+                    m.next = "B3"
+            with m.State("B3"):
+                m.d.comb += [
+                    usb_ep3_in.stream.payload.eq(10),
+                    usb_ep3_in.stream.last.eq(1),
+                    usb_ep3_in.stream.valid.eq(1),
+                ]
+                with m.If(usb_ep3_in.stream.ready):
+                    m.next = "WAIT"
         return m
 
 class UAC2RequestHandlers(USBRequestHandler):
