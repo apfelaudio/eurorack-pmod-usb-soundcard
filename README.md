@@ -2,6 +2,10 @@ in container // override with
 
 ```bash
 pip install git+https://github.com/amaranth-farm/python-usb-descriptors.git
+
+# testing
+aplaymidi -p 20:0 <>.mid
+amidi -d --port "hw:1,0,0"
 ```
 
 # Eurorack PMOD - USB Soundcard

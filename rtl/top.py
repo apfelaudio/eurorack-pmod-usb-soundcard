@@ -366,6 +366,17 @@ class USB2AudioInterface(Elaboratable):
             *connect_fifo_to_stream(midi_echo_fifo,     usb_ep3_in.stream, firstBit=-2, lastBit=-1),
         ]
 
+        scount = Signal(8)
+        with m.If(usb_ep3_in.stream.valid):
+            m.d.usb += scount.eq(scount+1)
+        led_red = [platform.request("rgb_led", n).r.o for n in range(4)]
+        m.d.comb += [
+            led_red[0].eq(scount[3]),
+            led_red[1].eq(scount[4]),
+            led_red[2].eq(scount[5]),
+            led_red[3].eq(scount[6]),
+        ]
+
         # calculate bytes in frame for audio in
         audio_in_frame_bytes = Signal(range(self.MAX_PACKET_SIZE), reset=24 * self.NR_CHANNELS)
         audio_in_frame_bytes_counting = Signal()
