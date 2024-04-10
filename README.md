@@ -1,3 +1,9 @@
+in container // override with
+
+```bash
+pip install git+https://github.com/amaranth-farm/python-usb-descriptors.git
+```
+
 # Eurorack PMOD - USB Soundcard
 
 This project allows a [`eurorack-pmod`](https://github.com/apfelaudio/eurorack-pmod) to be used as an 8-channel (4in + 4out) USB2 sound card. Currently it has the following limitations:

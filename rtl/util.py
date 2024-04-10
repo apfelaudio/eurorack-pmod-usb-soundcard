@@ -47,3 +47,23 @@ def connect_fifo_to_stream(fifo, stream, firstBit: int=None, lastBit: int=None) 
         result.append(stream.last.eq(fifo.r_data[lastBit]))
 
     return result
+
+
+def connect_stream_to_fifo(stream, fifo, firstBit: int=None, lastBit: int=None) -> None:
+    """Connects the stream to the input of the FIFO. Data flows from the stream to the FIFO.
+       It is assumed the payload occupies the lowest significant bits
+       This function connects first/last signals if their bit numbers are given
+    """
+
+    result = [
+        fifo.w_en.eq(stream.valid),
+        stream.ready.eq(fifo.w_rdy),
+        fifo.w_data.eq(stream.payload),
+    ]
+
+    if firstBit:
+        result.append(fifo.w_data[firstBit].eq(stream.first))
+    if lastBit:
+        result.append(fifo.w_data[lastBit].eq(stream.last))
+
+    return result

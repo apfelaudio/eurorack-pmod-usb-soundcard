@@ -8,15 +8,20 @@ import os
 from amaranth              import *
 from amaranth.build        import *
 from amaranth.lib.cdc      import FFSynchronizer
-from amaranth.lib.fifo     import SyncFIFO, AsyncFIFO
+from amaranth.lib.fifo     import SyncFIFO, AsyncFIFO, SyncFIFOBuffered
 
 from luna                import top_level_cli
-from luna.usb2           import USBDevice, USBIsochronousInMemoryEndpoint, USBIsochronousOutStreamEndpoint, USBIsochronousInStreamEndpoint
+from luna.usb2           import (USBDevice,
+                                 USBIsochronousInMemoryEndpoint,
+                                 USBIsochronousOutStreamEndpoint,
+                                 USBIsochronousInStreamEndpoint,
+                                 USBStreamInEndpoint,
+                                 USBStreamOutEndpoint)
 
 from usb_protocol.types                       import USBRequestType, USBRequestRecipient, USBTransferType, USBSynchronizationType, USBUsageType, USBDirection, USBStandardRequests
 from usb_protocol.types.descriptors.uac2      import AudioClassSpecificRequestCodes
 from usb_protocol.emitters                    import DeviceDescriptorCollection
-from usb_protocol.emitters.descriptors        import uac2, standard
+from usb_protocol.emitters.descriptors        import uac2, standard, midi1
 
 from luna.gateware.platform                   import NullPin
 from luna.gateware.usb.usb2.device            import USBDevice
@@ -26,7 +31,7 @@ from luna.gateware.stream.generator           import StreamSerializer
 from luna.gateware.stream                     import StreamInterface
 from luna.gateware.architecture.car                    import PHYResetController
 
-from util                   import EdgeToPulse
+from util                   import EdgeToPulse, connect_fifo_to_stream, connect_stream_to_fifo
 from usb_stream_to_channels import USBStreamToChannels
 from channels_to_usb_stream import ChannelsToUSBStream
 from eurorack_pmod          import EurorackPmod
@@ -36,8 +41,7 @@ class USB2AudioInterface(Elaboratable):
     """ USB Audio Class v2 interface """
     NR_CHANNELS = 4
     MAX_PACKET_SIZE = 512 # NR_CHANNELS * 24 + 4
-    USE_ILA = False
-    ILA_MAX_PACKET_SIZE = 512
+    MAX_PACKET_SIZE_MIDI = 512
 
     def create_descriptors(self):
         """ Creates the descriptors that describe our audio topology. """
@@ -74,17 +78,14 @@ class USB2AudioInterface(Elaboratable):
             audioControlInterface = self.create_audio_control_interface_descriptor()
             configDescr.add_subordinate_descriptor(audioControlInterface)
 
+            # Audio I/O stream descriptors
             self.create_output_channels_descriptor(configDescr)
-
             self.create_input_channels_descriptor(configDescr)
 
-            if self.USE_ILA:
-                with configDescr.InterfaceDescriptor() as i:
-                    i.bInterfaceNumber = 3
-
-                    with i.EndpointDescriptor() as e:
-                        e.bEndpointAddress = USBDirection.IN.to_endpoint_address(3) # EP 3 IN
-                        e.wMaxPacketSize   = self.ILA_MAX_PACKET_SIZE
+            # Midi descriptors
+            midi_interface, midi_streaming_interface = self.create_midi_interface_descriptor()
+            configDescr.add_subordinate_descriptor(midi_interface)
+            configDescr.add_subordinate_descriptor(midi_streaming_interface)
 
         return descriptors
 
@@ -251,6 +252,55 @@ class USB2AudioInterface(Elaboratable):
         # Windows wants a stereo pair as default setting, so let's have it
         self.create_input_streaming_interface(c, nr_channels=self.NR_CHANNELS, alt_setting_nr=1, channel_config=0x3)
 
+    def create_midi_interface_descriptor(self):
+        midi_interface = midi1.StandardMidiStreamingInterfaceDescriptorEmitter()
+        midi_interface.bInterfaceNumber = 3
+        midi_interface.bNumEndpoints    = 2
+
+        midi_streaming_interface = midi1.ClassSpecificMidiStreamingInterfaceDescriptorEmitter()
+
+        outToHostJack = midi1.MidiOutJackDescriptorEmitter()
+        outToHostJack.bJackID = 1
+        outToHostJack.bJackType = midi1.MidiStreamingJackTypes.EMBEDDED
+        outToHostJack.add_source(2)
+        midi_streaming_interface.add_subordinate_descriptor(outToHostJack)
+
+        inToDeviceJack = midi1.MidiInJackDescriptorEmitter()
+        inToDeviceJack.bJackID = 2
+        inToDeviceJack.bJackType = midi1.MidiStreamingJackTypes.EXTERNAL
+        midi_streaming_interface.add_subordinate_descriptor(inToDeviceJack)
+
+        inFromHostJack = midi1.MidiInJackDescriptorEmitter()
+        inFromHostJack.bJackID = 3
+        inFromHostJack.bJackType = midi1.MidiStreamingJackTypes.EMBEDDED
+        midi_streaming_interface.add_subordinate_descriptor(inFromHostJack)
+
+        outFromDeviceJack = midi1.MidiOutJackDescriptorEmitter()
+        outFromDeviceJack.bJackID = 4
+        outFromDeviceJack.bJackType = midi1.MidiStreamingJackTypes.EXTERNAL
+        outFromDeviceJack.add_source(3)
+        midi_streaming_interface.add_subordinate_descriptor(outFromDeviceJack)
+
+        outEndpoint = midi1.StandardMidiStreamingBulkDataEndpointDescriptorEmitter()
+        outEndpoint.bEndpointAddress = USBDirection.OUT.to_endpoint_address(3)
+        outEndpoint.wMaxPacketSize = self.MAX_PACKET_SIZE_MIDI
+        midi_streaming_interface.add_subordinate_descriptor(outEndpoint)
+
+        outMidiEndpoint = midi1.ClassSpecificMidiStreamingBulkDataEndpointDescriptorEmitter()
+        outMidiEndpoint.add_associated_jack(3)
+        midi_streaming_interface.add_subordinate_descriptor(outMidiEndpoint)
+
+        inEndpoint = midi1.StandardMidiStreamingBulkDataEndpointDescriptorEmitter()
+        inEndpoint.bEndpointAddress = USBDirection.IN.to_endpoint_address(3)
+        inEndpoint.wMaxPacketSize = self.MAX_PACKET_SIZE_MIDI
+        midi_streaming_interface.add_subordinate_descriptor(inEndpoint)
+
+        inMidiEndpoint = midi1.ClassSpecificMidiStreamingBulkDataEndpointDescriptorEmitter()
+        inMidiEndpoint.add_associated_jack(1)
+        midi_streaming_interface.add_subordinate_descriptor(inMidiEndpoint)
+
+        return (midi_interface, midi_streaming_interface)
+
     def elaborate(self, platform):
         m = Module()
 
@@ -292,6 +342,29 @@ class USB2AudioInterface(Elaboratable):
             endpoint_number=2, # EP 2 IN
             max_packet_size=self.MAX_PACKET_SIZE)
         usb.add_endpoint(ep2_in)
+
+        # MIDI endpoints
+        usb_ep3_out = USBStreamOutEndpoint(
+            endpoint_number=3, # EP 3 OUT
+            max_packet_size=self.MAX_PACKET_SIZE_MIDI)
+        usb.add_endpoint(usb_ep3_out)
+
+        usb_ep3_in = USBStreamInEndpoint(
+            endpoint_number=3, # EP 3 IN
+            max_packet_size=self.MAX_PACKET_SIZE_MIDI)
+        usb.add_endpoint(usb_ep3_in)
+
+        #
+        # USB MIDI (echo only for now)
+        #
+        usb_midi_fifo_depth = self.MAX_PACKET_SIZE_MIDI
+        m.submodules.midi_echo_fifo = midi_echo_fifo = \
+            DomainRenamer("usb")(SyncFIFOBuffered(width=8+2, depth=usb_midi_fifo_depth))
+
+        m.d.comb += [
+            *connect_stream_to_fifo(usb_ep3_out.stream, midi_echo_fifo,    firstBit=-2, lastBit=-1),
+            *connect_fifo_to_stream(midi_echo_fifo,     usb_ep3_in.stream, firstBit=-2, lastBit=-1),
+        ]
 
         # calculate bytes in frame for audio in
         audio_in_frame_bytes = Signal(range(self.MAX_PACKET_SIZE), reset=24 * self.NR_CHANNELS)
