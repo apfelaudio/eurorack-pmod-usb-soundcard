@@ -467,7 +467,7 @@ class USB2AudioInterface(Elaboratable):
                     m.d.usb += jack_period.eq(jack_period + 1)
             with m.State("B0"):
                 m.d.comb += [
-                    usb_ep3_in.stream.payload.eq(0x19),
+                    usb_ep3_in.stream.payload.eq(0x09),
                     usb_ep3_in.stream.first.eq(1),
                     usb_ep3_in.stream.valid.eq(1),
                 ]
