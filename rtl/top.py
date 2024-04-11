@@ -447,14 +447,6 @@ class USB2AudioInterface(Elaboratable):
         jack_usb = Signal(8)
         m.submodules.jack_sync = FFSynchronizer(eurorack_pmod.jack, jack_usb, o_domain="usb")
 
-        led_red = [platform.request("rgb_led", n).r.o for n in range(4)]
-        flip = Signal()
-        m.d.comb += [
-            led_red[0].eq(usb_ep3_in.stream.ready),
-            led_red[1].eq(1),
-            led_red[2].eq(flip)
-        ]
-
         N_TOUCH_CHANNELS = 8
         touch_usb = []
         for n in range(N_TOUCH_CHANNELS):
@@ -470,7 +462,6 @@ class USB2AudioInterface(Elaboratable):
                 with m.If(jack_period == int(60000000 / 40)):
                     m.d.usb += [
                         jack_period.eq(0),
-                        flip.eq(~flip),
                         touch_ch.eq(0)
                     ]
                     m.next = "B0"

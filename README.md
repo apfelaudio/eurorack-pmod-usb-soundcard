@@ -8,6 +8,12 @@ aplaymidi -p 20:0 <>.mid
 amidi -d --port "hw:1,0,0"
 ```
 
+tiliqua builds
+
+```bash
+PMOD_HW=HW_R33 LUNA_PLATFORM="tiliqua:TiliquaPlatform" python3 rtl/top.py --dry-run --keep-files
+```
+
 # Eurorack PMOD - USB Soundcard
 
 This project allows a [`eurorack-pmod`](https://github.com/apfelaudio/eurorack-pmod) to be used as an 8-channel (4in + 4out) USB2 sound card. Currently it has the following limitations:
