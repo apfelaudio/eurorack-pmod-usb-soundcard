@@ -81,7 +81,7 @@ class AudioToChannels(Elaboratable):
                         # sample conversion. Better to just switch native rate of I2S driver.
                         self.to_usb.payload.eq(
                             Cat(Const(0, N_ZFILL), adc_latched[channel*SW:(channel+1)*SW])),
-                        self.to_usb.channel_no.eq(channel),
+                        self.to_usb.channel_nr.eq(channel),
                         self.to_usb.valid.eq(1),
                     ]
                     m.next = f'CH{channel}-SEND'
