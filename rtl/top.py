@@ -34,8 +34,9 @@ from luna.gateware.architecture.car                    import PHYResetController
 from util                   import EdgeToPulse, connect_fifo_to_stream, connect_stream_to_fifo
 from usb_stream_to_channels import USBStreamToChannels
 from channels_to_usb_stream import ChannelsToUSBStream
-from eurorack_pmod          import EurorackPmod
 from audio_to_channels      import AudioToChannels
+
+import eurorack_pmod
 
 class USB2AudioInterface(Elaboratable):
     """ USB Audio Class v2 interface """
@@ -435,24 +436,48 @@ class USB2AudioInterface(Elaboratable):
             ep2_in.stream.stream_eq(channels_to_usb_stream.usb_stream_out),
         ]
 
-        m.submodules.eurorack_pmod = eurorack_pmod = EurorackPmod(
+        pmod_pins = None
+        if "ecpix" in platform.name.lower():
+            print("ecpix5: default audio on PMOD0")
+            pmod_pins = eurorack_pmod.pins_from_pmod_connector_with_ribbon(platform, 0)
+        elif "tiliqua" in platform.name.lower():
+            print("tiliqua: default audio on backpack ffc")
+            pmod_pins = platform.request("audio_ffc")
+
+        m.submodules.pmod0 = pmod0 = eurorack_pmod.EurorackPmod(
+                pmod_pins=pmod_pins,
                 hardware_r33=(os.getenv('PMOD_HW') == 'HW_R33'))
 
         m.submodules.audio_to_channels = AudioToChannels(
-                eurorack_pmod,
+                pmod0,
                 to_usb_stream=channels_to_usb_stream.channel_stream_in,
                 from_usb_stream=usb_to_channel_stream.channel_stream_out)
 
+        if "tiliqua" in platform.name.lower():
+            # Basic blinky for testing
+            # maybe try this in audio domain as well if things don't work
+            blinky_period = Signal(32)
+            blinky_toggle = Signal()
+            with m.If(blinky_period == int(60000000 / 10)):
+                m.d.usb += [
+                    blinky_period.eq(0),
+                    blinky_toggle.eq(~blinky_toggle),
+                ]
+            m.d.comb += [
+                platform.request("led_a").o.eq(blinky_toggle),
+                platform.request("led_b").o.eq(~blinky_toggle)
+            ]
+
         jack_period = Signal(32)
         jack_usb = Signal(8)
-        m.submodules.jack_sync = FFSynchronizer(eurorack_pmod.jack, jack_usb, o_domain="usb")
+        m.submodules.jack_sync = FFSynchronizer(pmod0.jack, jack_usb, o_domain="usb")
 
         N_TOUCH_CHANNELS = 8
         touch_usb = []
         for n in range(N_TOUCH_CHANNELS):
             touch_usb.append(Signal(8))
             setattr(m.submodules, f"touch_usb_synchronizer{n}",
-                    FFSynchronizer(eurorack_pmod.touch[n], touch_usb[n], o_domain="usb"))
+                    FFSynchronizer(pmod0.touch[n], touch_usb[n], o_domain="usb"))
 
         touch_ch = Signal(3)
 

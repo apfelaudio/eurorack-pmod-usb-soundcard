@@ -21,8 +21,12 @@ class _TiliquaPlatform(LatticeECP5Platform):
     resources   = [
         # BOOTSEL (shared)
         Resource("rst", 0, PinsN("A7", dir="i"), Attrs(IO_TYPE="LVCMOS33")),
+
         # 48MHz master
-        Resource("clk48", 0, Pins("A8", dir="i"), Attrs(IO_TYPE="LVCMOS33")),
+        Resource("clk48", 0, Pins("A8", dir="i"), Clock(48e6), Attrs(IO_TYPE="LVCMOS33")),
+
+        # PROGRAMN, used to trigger self-reconfiguration
+        Resource("self_program", 0, PinsN("T13", dir="o"), Attrs(IO_TYPE="LVCMOS33", PULLMODE="UP")),
 
         # LEDs
         Resource("led_a", 0, PinsN("B7", dir="o"),  Attrs(IO_TYPE="LVCMOS33")),
@@ -58,8 +62,27 @@ class _TiliquaPlatform(LatticeECP5Platform):
             Subsignal("bick",   Pins("D9",  dir="o")),
             Subsignal("mclk",   Pins("B11", dir="o")),
             Subsignal("pdn",    Pins("C11", dir="o")),
-            Subsignal("sda",    Pins("D13", dir="io")),
-            Subsignal("scl",    Pins("C13", dir="io")),
+            Subsignal("i2c_sda",    Pins("D13", dir="io")),
+            Subsignal("i2c_scl",    Pins("C13", dir="io")),
+        ),
+
+        # Use LUNA -- interface/flash.py for this
+        Resource("spi_flash", 0,
+            # SCK needs to go through a USRMCLK instance.
+            Subsignal("sdi",  Pins("T8",  dir="o")),
+            Subsignal("sdo",  Pins("T7",  dir="i")),
+            Subsignal("cs",   PinsN("N8", dir="o")),
+            Attrs(IO_TYPE="LVCMOS33")
+        ),
+
+        # HyperRAM
+        Resource("ram", 0,
+            Subsignal("clk",   DiffPairs("C3", "D3", dir="o"), Attrs(IO_TYPE="LVCMOS33D")),
+            Subsignal("dq",    Pins("F2 B1 C2 E1 E3 E2 F3 G4", dir="io")),
+            Subsignal("rwds",  Pins( "D1", dir="io")),
+            Subsignal("cs",    PinsN("B2", dir="o")),
+            Subsignal("reset", PinsN("C1", dir="o")),
+            Attrs(IO_TYPE="LVCMOS33", SLEWRATE="FAST")
         ),
     ]
 

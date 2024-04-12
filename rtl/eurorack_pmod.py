@@ -9,6 +9,24 @@ from amaranth.build        import *
 
 from util                  import EdgeToPulse
 
+def pins_from_pmod_connector_with_ribbon(platform, pmod_index):
+    """Create a eurorack-pmod resource on a given PMOD connector. Assumes ribbon cable flip."""
+    eurorack_pmod = [
+        Resource(f"eurorack_pmod{pmod_index}", pmod_index,
+            Subsignal("sdin1",   Pins("1",  conn=("pmod", pmod_index), dir='o')),
+            Subsignal("sdout1",  Pins("2",  conn=("pmod", pmod_index), dir='i')),
+            Subsignal("lrck",    Pins("3",  conn=("pmod", pmod_index), dir='o')),
+            Subsignal("bick",    Pins("4",  conn=("pmod", pmod_index), dir='o')),
+            Subsignal("mclk",    Pins("10", conn=("pmod", pmod_index), dir='o')),
+            Subsignal("pdn",     Pins("9",  conn=("pmod", pmod_index), dir='o')),
+            Subsignal("i2c_sda", Pins("8",  conn=("pmod", pmod_index), dir='io')),
+            Subsignal("i2c_scl", Pins("7",  conn=("pmod", pmod_index), dir='io')),
+            Attrs(IO_TYPE="LVCMOS33"),
+        )
+    ]
+    platform.add_resources(eurorack_pmod)
+    return platform.request(f"eurorack_pmod{pmod_index}")
+
 class EurorackPmod(Elaboratable):
     """
     Amaranth wrapper for Verilog files from `eurorack-pmod` project.
@@ -20,8 +38,8 @@ class EurorackPmod(Elaboratable):
     rates (as needed for 4x4 TDM the AK4619 requires).
     """
 
-    def __init__(self, pmod_index=0, width=16, hardware_r33=True):
-        self.pmod_index = pmod_index
+    def __init__(self, pmod_pins, width=16, hardware_r33=True):
+        self.pmod_pins = pmod_pins
         self.width = width
         self.hardware_r33 = hardware_r33
 
@@ -51,22 +69,6 @@ class EurorackPmod(Elaboratable):
 
         self.fs_strobe = Signal()
 
-    def request_pins(self, platform):
-        eurorack_pmod = [
-            Resource(f"eurorack_pmod{self.pmod_index}", 0,
-                Subsignal("sdin1",   Pins("1",  conn=("pmod", self.pmod_index), dir='o')),
-                Subsignal("sdout1",  Pins("2",  conn=("pmod", self.pmod_index), dir='i')),
-                Subsignal("lrck",    Pins("3",  conn=("pmod", self.pmod_index), dir='o')),
-                Subsignal("bick",    Pins("4",  conn=("pmod", self.pmod_index), dir='o')),
-                Subsignal("mclk",    Pins("10", conn=("pmod", self.pmod_index), dir='o')),
-                Subsignal("pdn",     Pins("9",  conn=("pmod", self.pmod_index), dir='o')),
-                Subsignal("i2c_sda", Pins("8",  conn=("pmod", self.pmod_index), dir='io')),
-                Subsignal("i2c_scl", Pins("7",  conn=("pmod", self.pmod_index), dir='io')),
-                Attrs(IO_TYPE="LVCMOS33"),
-            )
-        ]
-        platform.add_resources(eurorack_pmod)
-        return platform.request(f"eurorack_pmod{self.pmod_index}")
 
     def add_verilog_sources(self, platform):
 
@@ -111,7 +113,7 @@ class EurorackPmod(Elaboratable):
 
         self.add_verilog_sources(platform)
 
-        self.pmod_pins = pmod_pins = self.request_pins(platform)
+        pmod_pins = self.pmod_pins
 
         # 1/256 clk_fs divider. this is not a true clock domain, don't create one.
         # FIXME: this should be removed from `eurorack-pmod` verilog implementation
