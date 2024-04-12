@@ -110,7 +110,7 @@ class AudioToChannels(Elaboratable):
             # (usb domain) if the channel_no matches, demux it into the correct channel FIFO
             m.d.comb += [
                 fifo.w_data.eq(self.from_usb.payload[N_ZFILL:]),
-                fifo.w_en.eq((self.from_usb.channel_no == n) &
+                fifo.w_en.eq((self.from_usb.channel_nr == n) &
                              self.from_usb.valid),
             ]
 

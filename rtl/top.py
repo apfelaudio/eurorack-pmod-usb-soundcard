@@ -458,6 +458,8 @@ class USB2AudioInterface(Elaboratable):
             channels_to_usb_stream.data_requested_in.eq(ep2_in.data_requested),
             channels_to_usb_stream.frame_finished_in.eq(ep2_in.frame_finished),
             channels_to_usb_stream.audio_in_active.eq(usb_audio_in_active),
+
+            usb_to_channel_stream.no_channels_in.eq(self.NR_CHANNELS),
         ]
 
         pmod_pins = None
