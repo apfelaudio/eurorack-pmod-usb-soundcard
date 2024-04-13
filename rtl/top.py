@@ -563,7 +563,8 @@ class USB2AudioInterface(Elaboratable):
                         m.d.usb += touch_ch.eq(touch_ch + 1)
                         m.next = "B0"
 
-        self.ila = AsyncSerialILA(signals=[jack_period], sample_depth=32, divisor=60) # 1MBaud
+        self.ila = AsyncSerialILA(signals=[jack_period], sample_depth=512, divisor=60,
+                                  domain='usb', sample_rate=60e6) # 1MBaud on USB clock
         m.submodules += self.ila
 
         m.d.comb += [
@@ -680,5 +681,5 @@ if __name__ == "__main__":
     else:
         top = top_level_cli(USB2AudioInterface)
         from luna.gateware.debug.ila import AsyncSerialILAFrontend
-        frontend = AsyncSerialILAFrontend("/dev/ttyUSB3", 1000000, ila=top.ila)
+        frontend = AsyncSerialILAFrontend("/dev/ttyUSB3", baudrate=1000000, ila=top.ila)
         frontend.emit_vcd("out.vcd")
