@@ -1,0 +1,28 @@
+diff --git a/luna/__init__.py b/luna/__init__.py
+index 453b9d7..33c2f60 100644
+--- a/luna/__init__.py
++++ b/luna/__init__.py
+@@ -148,4 +148,4 @@ def top_level_cli(fragment, *pos_args, **kwargs):
+         if not args.keep_files:
+             shutil.rmtree(build_dir)
+ 
+-    return None
++    return fragment
+diff --git a/luna/gateware/debug/ila.py b/luna/gateware/debug/ila.py
+index 3081b2f..b95ea3a 100644
+--- a/luna/gateware/debug/ila.py
++++ b/luna/gateware/debug/ila.py
+@@ -1015,11 +1015,11 @@ class AsyncSerialILAFrontend(ILAFrontend):
+         sample_width_bytes = self.ila.bytes_per_sample
+ 
+         # Iterate over each sample, and yield its value as a bits object.
+-        for i in range(0, len(all_samples), sample_width_bytes):
++        for i in range(3, len(all_samples), sample_width_bytes):
+             raw_sample    = all_samples[i:i + sample_width_bytes]
+             sample_length = len(Cat(self.ila.signals))
+ 
+-            yield bits.from_bytes(raw_sample, length=sample_length, byteorder='big')
++            yield bits.from_bytes(raw_sample, length=sample_length, byteorder='little')
+ 
+ 
+     def _read_samples(self):

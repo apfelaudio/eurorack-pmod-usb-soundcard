@@ -563,7 +563,9 @@ class USB2AudioInterface(Elaboratable):
                         m.d.usb += touch_ch.eq(touch_ch + 1)
                         m.next = "B0"
 
-        self.ila = AsyncSerialILA(signals=[jack_period], sample_depth=512, divisor=60,
+        test_signal = Signal(32, reset=0xDEADBEEF)
+
+        self.ila = AsyncSerialILA(signals=[test_signal, jack_period], sample_depth=512, divisor=60,
                                   domain='usb', sample_rate=60e6) # 1MBaud on USB clock
         m.submodules += self.ila
 
