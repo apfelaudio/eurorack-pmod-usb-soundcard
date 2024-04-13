@@ -1,6 +1,13 @@
 in container // override with
 
 ```bash
+# Return fragment in luna/__init__
+#
+# for ILA launch docker with
+docker run -it --mount src="$(pwd)",target=/eurorack-pmod-usb-soundcard,type=bind --device /dev/ttyUSB3 luna
+# build halts at end
+# vcd generated after flash (seems to have wrong contents?
+
 pip install git+https://github.com/amaranth-farm/python-usb-descriptors.git
 
 # testing

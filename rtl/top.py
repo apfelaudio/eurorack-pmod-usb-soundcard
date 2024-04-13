@@ -31,6 +31,8 @@ from luna.gateware.stream.generator           import StreamSerializer
 from luna.gateware.stream                     import StreamInterface
 from luna.gateware.architecture.car                    import PHYResetController
 
+from luna.gateware.debug.ila import AsyncSerialILA
+
 from util                   import EdgeToPulse, connect_fifo_to_stream, connect_stream_to_fifo
 from usb_stream_to_channels import USBStreamToChannels
 from channels_to_usb_stream import ChannelsToUSBStream
@@ -560,6 +562,15 @@ class USB2AudioInterface(Elaboratable):
                     with m.Else():
                         m.d.usb += touch_ch.eq(touch_ch + 1)
                         m.next = "B0"
+
+        self.ila = AsyncSerialILA(signals=[jack_period], sample_depth=32, divisor=60) # 1MBaud
+        m.submodules += self.ila
+
+        m.d.comb += [
+            self.ila.trigger.eq(jack_period > 1000),
+            platform.request("uart").tx.o.eq(self.ila.tx), # needs FFSync?
+        ]
+
         return m
 
 class UAC2RequestHandlers(USBRequestHandler):
@@ -667,4 +678,7 @@ if __name__ == "__main__":
         print('Please specify a valid eurorack-pmod hardware revision in the environment e.g.\n'
               '$ PMOD_HW=HW_R33 LUNA_PLAFORM=<your_platform> ...')
     else:
-        top_level_cli(USB2AudioInterface)
+        top = top_level_cli(USB2AudioInterface)
+        from luna.gateware.debug.ila import AsyncSerialILAFrontend
+        frontend = AsyncSerialILAFrontend("/dev/ttyUSB3", 1000000, ila=top.ila)
+        frontend.emit_vcd("out.vcd")
