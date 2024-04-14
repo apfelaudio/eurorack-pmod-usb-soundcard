@@ -565,12 +565,22 @@ class USB2AudioInterface(Elaboratable):
 
         test_signal = Signal(32, reset=0xDEADBEEF)
 
-        self.ila = AsyncSerialILA(signals=[test_signal, jack_period], sample_depth=512, divisor=60,
+        ila_signals = [
+            test_signal,
+            jack_period,
+            m.submodules.audio_to_channels.adc_fifo_level,
+            m.submodules.audio_to_channels.dac_fifo_level0,
+            pmod0.cal_out0,
+        ]
+
+        self.ila = AsyncSerialILA(signals=ila_signals,
+                                  sample_depth=8192*4, divisor=60,
                                   domain='usb', sample_rate=60e6) # 1MBaud on USB clock
         m.submodules += self.ila
 
         m.d.comb += [
-            self.ila.trigger.eq(jack_period > 1000),
+            self.ila.trigger.eq(pmod0.cal_out0 > 1000),
+            #self.ila.trigger.eq(usb_audio_in_active),
             platform.request("uart").tx.o.eq(self.ila.tx), # needs FFSync?
         ]
 

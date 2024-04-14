@@ -18,6 +18,9 @@ class AudioToChannels(Elaboratable):
         self.from_usb = from_usb_stream
         self.eurorack_pmod = eurorack_pmod
 
+        self.adc_fifo_level = Signal(8)
+        self.dac_fifo_level0 = Signal(8)
+
     def elaborate(self, platform) -> Module:
 
         m = Module()
@@ -117,9 +120,13 @@ class AudioToChannels(Elaboratable):
             # (audio domain) once fs_strobe hits, write the next pending sample to eurorack_pmod.
             with m.FSM(domain="audio") as fsm:
                 with m.State('READ'):
-                    with m.If(eurorack_pmod.fs_strobe & fifo.r_rdy):
-                        m.d.audio += fifo.r_en.eq(1)
-                        m.next = 'SEND'
+                    with m.If(eurorack_pmod.fs_strobe):
+                        with m.If(fifo.r_rdy):
+                            m.d.audio += fifo.r_en.eq(1)
+                            m.next = 'SEND'
+                        with m.Else():
+                            # dac drained -- keep output where it already is!
+                            pass
                 with m.State('SEND'):
                     m.d.audio += [
                         fifo.r_en.eq(0),
@@ -129,7 +136,12 @@ class AudioToChannels(Elaboratable):
 
         # FIXME: make this less lenient
         m.d.comb += self.from_usb.ready.eq(
-            m.submodules.dac_fifo0.w_rdy | m.submodules.dac_fifo1.w_rdy |
-            m.submodules.dac_fifo2.w_rdy | m.submodules.dac_fifo3.w_rdy)
+            m.submodules.dac_fifo0.w_rdy & m.submodules.dac_fifo1.w_rdy &
+            m.submodules.dac_fifo2.w_rdy & m.submodules.dac_fifo3.w_rdy)
+
+        m.d.comb += [
+            self.adc_fifo_level.eq(adc_fifo.r_level),
+            self.dac_fifo_level0.eq(m.submodules.dac_fifo0.r_level)
+        ]
 
         return m

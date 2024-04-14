@@ -9,15 +9,19 @@ index 453b9d7..33c2f60 100644
 -    return None
 +    return fragment
 diff --git a/luna/gateware/debug/ila.py b/luna/gateware/debug/ila.py
-index 3081b2f..b95ea3a 100644
+index 3081b2f..3fe439c 100644
 --- a/luna/gateware/debug/ila.py
 +++ b/luna/gateware/debug/ila.py
-@@ -1015,11 +1015,11 @@ class AsyncSerialILAFrontend(ILAFrontend):
+@@ -1014,12 +1014,16 @@ class AsyncSerialILAFrontend(ILAFrontend):
+ 
          sample_width_bytes = self.ila.bytes_per_sample
  
++        print(all_samples[0:100])
++        while all_samples[0:4] != b'\xef\xbe\xad\xde':
++            all_samples = all_samples[1:]
++
          # Iterate over each sample, and yield its value as a bits object.
--        for i in range(0, len(all_samples), sample_width_bytes):
-+        for i in range(3, len(all_samples), sample_width_bytes):
+         for i in range(0, len(all_samples), sample_width_bytes):
              raw_sample    = all_samples[i:i + sample_width_bytes]
              sample_length = len(Cat(self.ila.signals))
  
