@@ -20,7 +20,7 @@ class _TiliquaPlatform(LatticeECP5Platform):
 
     resources   = [
         # BOOTSEL (shared)
-        Resource("rst", 0, PinsN("A7", dir="i"), Attrs(IO_TYPE="LVCMOS33")),
+        Resource("rst", 0, PinsN("C4", dir="i"), Attrs(IO_TYPE="LVCMOS33")),
 
         # 48MHz master
         Resource("clk48", 0, Pins("A8", dir="i"), Clock(48e6), Attrs(IO_TYPE="LVCMOS33")),
@@ -33,7 +33,7 @@ class _TiliquaPlatform(LatticeECP5Platform):
         Resource("led_b", 0, PinsN("A3", dir="o"),  Attrs(IO_TYPE="LVCMOS33")),
 
         # Button B
-        Resource("button_b", 0, PinsN("C4", dir="i"),  Attrs(IO_TYPE="LVCMOS33")),
+        # Resource("button_b", 0, PinsN("C4", dir="i"),  Attrs(IO_TYPE="LVCMOS33")),
 
         # RP2040 bridge
         UARTResource(0,
@@ -51,8 +51,8 @@ class _TiliquaPlatform(LatticeECP5Platform):
         ULPIResource("ulpi", 0,
             data="D6 D4 E4 A5 B5 A6 B6 B3",
             clk="D7", clk_dir="o", dir="A2", nxt="C5",
-            stp="C6", rst="C7", rst_invert=False,
-            attrs=Attrs(IO_TYPE="LVCMOS33", SLEWRATE="SLOW")),
+            stp="C6", rst="C7", rst_invert=True,
+            attrs=Attrs(IO_TYPE="LVCMOS33")),
 
         # FFC connector to eurorack-pmod on the back.
         Resource("audio_ffc", 0,
@@ -105,12 +105,19 @@ class TiliquaDomainGenerator(Elaboratable):
         m.domains.usb    = ClockDomain()
         m.domains.fast   = ClockDomain()
         m.domains.audio  = ClockDomain()
+        m.domains.raw48  = ClockDomain()
+
 
         clk48 = platform.request(platform.default_clk, dir='i').i
         reset  = platform.request(platform.default_rst, dir='i').i
+        #reset  = Signal(1, reset=0)
 
         # ecppll -i 48 --clkout0 60 --clkout1 60 --reset -f pll60.v
         # 60MHz for USB (currently also fast + sync domains)
+
+        m.d.comb += [
+            ClockSignal("raw48").eq(clk48),
+        ]
 
         feedback60 = Signal()
         locked60   = Signal()

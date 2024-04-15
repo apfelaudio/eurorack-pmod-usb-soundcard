@@ -456,16 +456,13 @@ class USB2AudioInterface(Elaboratable):
         if "tiliqua" in platform.name.lower():
             # Basic blinky for testing
             # maybe try this in audio domain as well if things don't work
-            blinky_period = Signal(32)
-            blinky_toggle = Signal()
-            with m.If(blinky_period == int(60000000 / 10)):
-                m.d.usb += [
-                    blinky_period.eq(0),
-                    blinky_toggle.eq(~blinky_toggle),
-                ]
+            blinky_period = Signal(32, reset=0)
+            m.d.usb += [
+                blinky_period.eq(blinky_period + 1),
+            ]
             m.d.comb += [
-                platform.request("led_a").o.eq(blinky_toggle),
-                platform.request("led_b").o.eq(~blinky_toggle)
+                platform.request("led_a").o.eq(ResetSignal("usb") | blinky_period[21]),
+                platform.request("led_b").o.eq(ResetSignal("audio") | blinky_period[22])
             ]
 
         jack_period = Signal(32)
